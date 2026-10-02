@@ -1599,7 +1599,7 @@ setting `<TYPE>_STACKING_ENABLED=true` in its env.
 
 Background: ablation showed the stacker hurts numeric CRPS (median beats stack, p=0.042), so the numeric disable
 is evidence-backed. Binary was a tie (p=0.496), so binary and MC are off as a low-risk default, being a
-tie-at-best plus compute, and unmeasured on the current stack. Revisit after a prod-ish ablation or marker-era
+tie-at-best plus compute, and unmeasured on the current stack. Revisit after a free-tier benchmark or marker-era
 resolutions; see `scratch_docs_and_planning/prod_ish_ablation_plan.md`.
 
 ## Prediction-market provider (Workstream G)

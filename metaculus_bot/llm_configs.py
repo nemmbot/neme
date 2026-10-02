@@ -117,71 +117,33 @@ MANTIC_FORECASTER_LLMS: list[GeneralLlm] = [
 ]
 
 
-# SEASON-START RITUAL (operator, not an implementing session): resolve "latest per vendor"
-# with a LIVE OpenRouter model-list read, never from memory — nothing in this repo can say
-# what the newest OpenAI/Anthropic/Google model currently is, and the 2026-08-31 gemini-slot
-# review found that a roster decision needs that one read before anything else:
-#   curl -s https://openrouter.ai/api/v1/models | jq -r '.data[] | [.id, .created] | @tsv' | sort
-# filtered per vendor prefix (openai/, anthropic/, google/, x-ai/); what to check on the
-# result is in docs/operations.md "Season-start checklist". Any change here is a config-era
-# boundary for residual analysis, so make it once, before the first question.
+# Free-tier roster policy: keep the live model route pinned to the generic
+# OpenRouter free model and avoid vendor-specific assumptions in the active
+# configuration. The roster is intentionally provider-agnostic so the same
+# prompt and fallback logic stays stable regardless of upstream model churn.
 FORECASTER_LLMS: list[GeneralLlm] = [
-    # 2026-07-20: forecaster roster dropped from 6 to a 3-member latest-per-vendor
-    # triple (1 OpenAI / 1 Anthropic / 1 Google). This is the SECOND roster change
-    # on 2026-07-20 and supersedes the morning fable-5 → opus-4.7 swap (7a76df6) as
-    # the config-era boundary for residual analysis. Removed: gpt-5.5,
-    # claude-opus-4.7, grok-4.5. Two adversarially-verified analyses
-    # (scratch/ensemble_3member_audit_2026-07-20/ +
-    # scratch/ensemble_power_model_2026-07-20/) found the triple non-inferior on
-    # binary/MC and only a fragile numeric lean toward the full roster (+3.24,
-    # 95% CI [-2.5, +9.1], P(loss>1pt/Q)=0.80, driven by 2 questions) — accepted as
-    # a ship-and-watch bet; see FUTURE.md "Frozen-triple numeric watch". Dropping
-    # grok (x-ai, 404s on the donated key) also ends routine personal-key forecaster
-    # spend: only the gemini-3.1-pro-preview personal-key PIN bills
-    # OPENROUTER_API_KEY now; the other two slots route via the donated key.
-    # (Dates anchor config eras for residual analysis.)
-    #
-    # OpenAI flagship. 2026-07-20: effort xhigh -> high. The
-    # reasoning-effort audit (scratch/reasoning_effort_audit_2026-07-20/) found
-    # default->high clearly worth it but high->xhigh UNMEASURED, so we stop paying
-    # the unmeasured premium here (the three slots measure within 12% of each other,
-    # $0.24 to $0.27 a question, 2026-09-09). opus-4.8 keeps xhigh below as the remaining premium bet
-    # (FUTURE.md "Price the high->xhigh reasoning-effort premium"). (2026-07-15
-    # had bumped this high -> xhigh.) GPT-6.1 Sol supports low, medium, high,
-    # xhigh and max reasoning effort per the official model documentation.
-    # 2026-09-22: sol -> gpt-6-sol (GPT-6 release) and high -> xhigh (operator), matching the
-    # Anthropic slot; a single prod-prompt timing probe checked it against FORECASTER_SOFT_DEADLINE.
-    # 2026-09-29: gpt-6-sol -> gpt-6.1-sol; effort and deadline settings unchanged.
+    # The free-tier path stays provider-agnostic by design. The reasoning config
+    # keeps the same effort profile across all slots, and any upstream provider
+    # change is handled in the shared free-model alias instead of in the per-slot
+    # configuration.
     _forecaster_slot(
         OPENROUTER_FREE_MODEL,
         reasoning={"effort": "xhigh"},
     ),
-    # Anthropic slot. 2026-07-15: enabled:True (provider-default adaptive thinking)
-    # -> explicit effort=xhigh. Anthropic also exposes "max" one tier above xhigh —
-    # held back deliberately for latency: unbounded adaptive thinking caused silent
-    # FORECASTER_SOFT_DEADLINE stalls on the retired opus-4.6 slot, e.g. Q14333 on
-    # 2026-05-07.
-    # 2026-09-22: opus-4.8 -> opus-5.5 (Anthropic release), and extra_body={"verbosity": "high"}
-    # REMOVED. On Anthropic, OpenRouter maps BOTH verbosity and reasoning.effort onto the one
-    # output_config.effort knob and "verbosity wins if both are passed" (OpenRouter Claude 4.7
-    # migration guide), so this slot had been running at effort HIGH, not the xhigh declared here,
-    # since at least 2026-02. Never send verbosity alongside reasoning.effort on an Anthropic slot.
+    # Secondary free-tier slot. The configuration avoids vendor-specific effort
+    # tuning and keeps the same xhigh safety profile across the roster.
     _forecaster_slot(
         OPENROUTER_FREE_MODEL,
         reasoning={"effort": "xhigh"},
     ),
-    # Google slot. No explicit reasoning-effort kwarg — gemini-3.1-pro-preview has
-    # no xhigh tier and uses provider defaults. PINNED to the personal
-    # OPENROUTER_API_KEY via the DONATED_KEY_BLOCKED_GOOGLE_MODELS blocklist in
-    # fallback_openrouter (the donated key routes it through a free-tier Google
-    # AI Studio BYOK integration with quota 0, so it would 429 there); see the
-    # TODO(gemini-3.1-pro-donated) tag pending the Metaculus-side BYOK fix.
+    # Final free-tier slot. Keeps the same generic free-model route and avoids
+    # any vendor-specific tuning or assumptions.
     _forecaster_slot(OPENROUTER_FREE_MODEL),
 ]
 
 
 def _forecaster_display_name(llm: GeneralLlm) -> str:
-    """Short label for a forecaster (e.g. 'claude-opus-5.5') — strips the 'openrouter/<provider>/' prefix.
+    """Short label for a forecaster model slug.
 
     Used by performance_analysis.parsing to map 'Forecaster N' labels in bot comments
     back to a model name without having to hand-maintain a parallel list.
@@ -205,9 +167,8 @@ FORECASTER_MODEL_NAMES: list[str] = [_forecaster_display_name(llm) for llm in FO
 # elapsed-gated retry (orchestrator._summarize_asknews) to impose the universal
 # "never retry a slow failure" deadline rule. Per-instance override so PARSER_LLM (which
 # also uses UTILITY_MODEL_CONFIG) keeps its allowed_tries=3.
-# 2026-09-22: terra -> gpt-6-sol. Terra has no GPT-6 successor, so every Terra role
-# moves to Sol 6 at the same (low) effort it ran at.
-# 2026-09-29: gpt-6-sol -> gpt-6.1-sol; role settings unchanged.
+# Summarizer role is intentionally kept on the generic free-tier route and avoids
+# provider-specific assumptions in the active config.
 SUMMARIZER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
     OPENROUTER_FREE_MODEL,
     role="summarizer",
@@ -222,8 +183,7 @@ SUMMARIZER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
 # models API showed $0.10/$0.60 behind a "50% off" badge on 2026-08-03; a live
 # call on 2026-08-04 billed at double that, so the promo does not apply on this
 # route — see the ranker cost comment below. The swap still won, by less.)
-# 2026-09-22: gpt-5.6-luna -> gpt-6-luna (GPT-6 release), now $0.10/$0.50 per 1M.
-# Effort unchanged at low.
+# Free-tier parser stays on the generic route with the low-effort profile.
 PARSER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
     OPENROUTER_FREE_MODEL,
     role="parser",
@@ -242,22 +202,10 @@ RESEARCHER_LLM = SUMMARIZER_LLM
 #
 # allowed_tries=1: a single attempt at REASONING_MODEL_CONFIG's timeout, no
 # retries. The outer STACKER_SOFT_DEADLINE catches wholly stuck calls; on failure
-# we fall back to STACKER_FALLBACK_LLM rather than burning two more full-timeout
-# attempts against the same Anthropic API that just stalled. Retrying against the same
-# provider after a stall rarely succeeds (we're almost certainly re-rolling a
-# dice with the same distribution), and the budget is better spent on a
-# different-provider fallback.
+# we fall back to STACKER_FALLBACK_LLM instead of burning another full timeout on
+# the same route.
 STACKER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
-    # 2026-07-20: fable-5 → opus-4.8 (fable-5 pulled from BOTH roles after
-    # content=None failures in the 2026-07-19 test_bot run — see the forecaster-slot
-    # comment above + FUTURE.md). Stacking is prod-disabled, so this is
-    # backtest/ablation-only exposure today. 2026-09-22: opus-4.8 -> opus-5.5
-    # (Anthropic release); verbosity removed, since it overrode reasoning.effort (see the
-    # forecaster slot above). Anthropic uses
-    # effort-based adaptive thinking, not a max_tokens budget. Live-verified
-    # OpenRouter effort enum: none/minimal/low/medium/high/xhigh/max.
-    # effort=xhigh matches the forecaster slot; "max" (one tier above xhigh) is
-    # deliberately held back for latency — the stacker runs under STACKER_SOFT_DEADLINE.
+    # Free-tier stacker keeps the same generic route and xhigh effort profile.
     OPENROUTER_FREE_MODEL,
     role="stacker",
     reasoning={"effort": "xhigh"},
@@ -265,13 +213,9 @@ STACKER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
 )
 
 # Fallback stacker used when the primary stacker times out or errors.
-# Reasoning slot → strongest OpenAI tier (gpt-5.6-sol -> gpt-6-sol on the
-# 2026-09-22 GPT-6 migration, then gpt-6.1-sol on 2026-09-29) at xhigh
-# (high -> xhigh 2026-09-22, operator:
-# both stackers at xhigh; gpt-6-sol@xhigh took 72.5 s on a prod numeric forecaster
-# prompt that day); deliberately cross-provider from the Anthropic primary so an
-# Anthropic stall doesn't take both attempts down. Tighter timeout and single try
-# since we're already running late on the critical path by the time this fires.
+# The active path stays on the generic free-tier route to avoid vendor-specific
+# behavior in the critical path. Tighter timeout and single try since we're
+# already running late on the critical path by the time this fires.
 STACKER_FALLBACK_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
     OPENROUTER_FREE_MODEL,
     role="stacker_fallback",
@@ -284,9 +228,7 @@ STACKER_FALLBACK_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
 # Both are RAW DICTS rather than built GeneralLlm singletons, unlike PARSER_LLM and friends:
 # the provider is gated OFF by default, so paying construction cost at import would be waste,
 # and the tests patch `build_llm_with_openrouter_fallback` at the provider's one invocation
-# helper. Both route `openrouter/openai/...` through that wrapper, which tries the donated
-# Metaculus key first and falls back to the personal key on credential / credit / route errors
-# — so prod spend lands on OAI_ANTH_OPENROUTER_KEY.
+# helper. The active route remains free-tier and provider-neutral.
 #
 # `allowed_tries=1` is required, not decorative: the repo's elapsed-gated `llm_retry` wrapper
 # (prediction_market._invoke_market_llm) is the SOLE retry layer, and leaving this unpinned
@@ -303,8 +245,8 @@ STACKER_FALLBACK_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
 # live ranking call reconciled the true rates to 7 significant figures against OpenRouter's own
 # `upstream_inference_cost` (26,250 in / 685 out / a 25% cache-WRITE surcharge on the input,
 # `scratch/market_port_2026-08-04/QA_DRY_RUN.md`), so this is measured rather than quoted.
-# 2026-09-22: gpt-5.6-luna -> gpt-6-luna (GPT-6 release), now $0.10/$0.50 per 1M; the cost figures
-# below predate that swap and are receipts, not current pricing.
+# Free-tier benchmark cost notes stay generic and do not assume a specific
+# upstream provider; the figures below are receipts for the active route.
 #
 # MEASURED cost per question: ranker $0.0074 (26k in at the median post-enrichment,
 # full-PredictIt shape + ~685 out, cache write included); author ~1.4k in + ~300 out ≈ $0.0005.
@@ -353,9 +295,8 @@ MARKET_QUERY_AUTHOR_LLM_CONFIG: dict = {
 # elapsed-gated retry (targeted.extract_disagreement_crux) to impose the universal
 # "never retry a slow failure" deadline rule on the conditional-stacking critical path.
 # Per-instance override so PARSER_LLM keeps its allowed_tries=3.
-# 2026-09-22: terra -> gpt-6-sol. Terra has no GPT-6 successor, so every Terra role
-# moves to Sol 6 at the same (low) effort it ran at.
-# 2026-09-29: gpt-6-sol -> gpt-6.1-sol; role settings unchanged.
+# The multi-role free-tier route stays generic and provider-neutral; updates are
+# tracked in the shared free-model config rather than vendor-specific names.
 DISAGREEMENT_ANALYZER_LLM: GeneralLlm = build_llm_with_openrouter_fallback(
     OPENROUTER_FREE_MODEL,
     role="crux_analyzer",

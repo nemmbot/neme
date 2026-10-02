@@ -23,7 +23,7 @@ from metaculus_bot.llm_configs import PARSER_LLM, RESEARCHER_LLM, SUMMARIZER_LLM
 MODEL_CONFIG: dict[str, Any] = {
     "max_tokens": 64_000,
     "stream": False,
-    "timeout": 480,  # 8 minutes - reasoning models (o3, gpt-5.1) need extra time
+    "timeout": 480,
     "allowed_tries": 3,
 }
 
@@ -59,19 +59,14 @@ MODEL_CATALOG: dict[str, GeneralLlm] = {
     #     model="openrouter/moonshotai/kimi-k2-thinking",
     #     **MODEL_CONFIG,
     # ),
-    "gpt-5.1": build_llm_with_openrouter_fallback(
-        model="openrouter/openai/gpt-5.1",
+    "free-tier-5.1": build_llm_with_openrouter_fallback(
+        model="openrouter/free",
         reasoning={"effort": "high"},
         **MODEL_CONFIG,
     ),
-    # "o3": build_llm_with_openrouter_fallback(
-    #     model="openrouter/openai/o3",
-    #     reasoning={"effort": "high"},
-    #     **MODEL_CONFIG,
-    # ),
     # --- Models below are defined for future testing ---
-    # "gpt-5.2": build_llm_with_openrouter_fallback(
-    #     model="openrouter/openai/gpt-5.2",
+    # "free-tier-5.2": build_llm_with_openrouter_fallback(
+    #     model="openrouter/free",
     #     reasoning={"effort": "high"},
     #     **MODEL_CONFIG,
     # ),
@@ -83,8 +78,8 @@ MODEL_CATALOG: dict[str, GeneralLlm] = {
     #     model="openrouter/google/gemini-3-flash-preview",
     #     **MODEL_CONFIG,
     # ),
-    # "claude-opus-4.5": build_llm_with_openrouter_fallback(
-    #     model="openrouter/anthropic/claude-opus-4.5",
+    # "free-tier-4.5": build_llm_with_openrouter_fallback(
+    #     model="openrouter/free",
     #     reasoning={"max_tokens": 16_000},
     #     **MODEL_CONFIG,
     # ),
@@ -93,8 +88,8 @@ MODEL_CATALOG: dict[str, GeneralLlm] = {
     #     reasoning={"effort": "high"},
     #     **MODEL_CONFIG,
     # ),
-    # "claude-sonnet-4.5": build_llm_with_openrouter_fallback(
-    #     model="openrouter/anthropic/claude-sonnet-4.5",
+    # "free-tier-4.5": build_llm_with_openrouter_fallback(
+    #     model="openrouter/free",
     #     reasoning={"max_tokens": 16_000},
     #     **MODEL_CONFIG,
     # ),
@@ -107,24 +102,19 @@ MODEL_CATALOG: dict[str, GeneralLlm] = {
 INDIVIDUAL_MODEL_SPECS: tuple[Mapping[str, str | GeneralLlm], ...] = (
     MappingProxyType({"name": "qwen3-235b", "forecaster": MODEL_CATALOG["qwen3-235b"]}),
     MappingProxyType({"name": "deepseek-3.2", "forecaster": MODEL_CATALOG["deepseek-3.2"]}),
-    MappingProxyType({"name": "gpt-5.1", "forecaster": MODEL_CATALOG["gpt-5.1"]}),
-    # MappingProxyType({"name": "o3", "forecaster": MODEL_CATALOG["o3"]}),
+    MappingProxyType({"name": "free-tier-5.1", "forecaster": MODEL_CATALOG["free-tier-5.1"]}),
     # --- Models below are for future testing ---
     # MappingProxyType({"name": "kimi-k2", "forecaster": MODEL_CATALOG["kimi-k2"]}),
-    # MappingProxyType({"name": "gpt-5.2", "forecaster": MODEL_CATALOG["gpt-5.2"]}),
+    # MappingProxyType({"name": "free-tier-5.2", "forecaster": MODEL_CATALOG["free-tier-5.2"]}),
     # MappingProxyType({"name": "gemini-3-pro", "forecaster": MODEL_CATALOG["gemini-3-pro"]}),
     # MappingProxyType({"name": "gemini-3-flash", "forecaster": MODEL_CATALOG["gemini-3-flash"]}),
-    # MappingProxyType({"name": "claude-opus-4.5", "forecaster": MODEL_CATALOG["claude-opus-4.5"]}),
     # MappingProxyType({"name": "grok-4.1-fast", "forecaster": MODEL_CATALOG["grok-4.1-fast"]}),
-    # MappingProxyType({"name": "claude-sonnet-4.5", "forecaster": MODEL_CATALOG["claude-sonnet-4.5"]}),
     # MappingProxyType({"name": "glm-4.7", "forecaster": MODEL_CATALOG["glm-4.7"]}),
 )
 
 STACKING_MODEL_SPECS: tuple[Mapping[str, GeneralLlm], ...] = (
     # MappingProxyType({"name": "stack-qwen3", "stacker": MODEL_CATALOG["qwen3-235b"]}),
-    # MappingProxyType({"name": "stack-o3", "stacker": MODEL_CATALOG["o3"]}),
-    # MappingProxyType({"name": "stack-claude4", "stacker": MODEL_CATALOG["claude-sonnet-4"]}),
-    # MappingProxyType({"name": "stack-gpt5.1", "stacker": MODEL_CATALOG["gpt-5.1"]}),
+    # MappingProxyType({"name": "stack-free-tier-5.1", "stacker": MODEL_CATALOG["free-tier-5.1"]}),
 )
 
 

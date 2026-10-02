@@ -9,19 +9,9 @@ sets it to ``"1"`` so both produce real markdown for the stacker prompt. Results
 ``(qid, arm)``; on primary-stacker failure the runner falls back to a secondary stacker LLM, and
 when both fail it caches a ``success=False`` payload so the batch wrapper continues.
 
-Stacker choice. The default primary is ``openrouter/anthropic/claude-opus-4.5`` rather than prod's
-opus-5.5 (``STACKER_LLM`` in ``llm_configs.py``, opus-4.8 -> opus-5.5 on the 2026-09-22 GPT-6/opus-5.5
-migration; the slot has been Anthropic since 2026-07-20, when fable-5 left both roles), because a
-gpt-5.5 primary 404ed ("no endpoints available", a data-policy guardrail) on every request from the
-operator's local donated key while the GitHub-secret key worked; Anthropic models clear it. The
-``gpt-6.1-sol`` fallback matches prod ``STACKER_FALLBACK_LLM`` (gpt-5.6-sol -> gpt-6-sol on the
-2026-09-22 migration, then gpt-6-sol -> gpt-6.1-sol on 2026-09-29) and sits on a different provider
-so an Anthropic stall cannot take both attempts down. Both go through
-``build_llm_with_openrouter_fallback`` so the Metaculus-donated
-OpenRouter key absorbs cost ahead of the operator's paid key; that wrapper handles the
-donated-to-paid fallback on credit/auth/data-policy errors itself, so the outer
-primary-to-fallback chain in ``run_stacker_for_arm`` is a defense-in-depth backstop, not the
-cost control.
+Stacker choice. This benchmark stays on the generic free-tier route and avoids
+provider-specific fallbacks. The active path is therefore a single free-model
+stacker configuration tuned for the bench without any vendor-specific model names.
 
 Cost, order of magnitude: a frontier stacker at ``reasoning={"effort": "high"}`` runs about
 $0.05-0.10 per call, so a 20-question sweep (40 calls) is $2-4 and a 60-question sweep (120
@@ -77,16 +67,13 @@ ARM_PDF_MIN2 = "pdf_min2"  # pdf arm with min_forecasters=2 (proper aggregation)
 ARM_MEDIAN = "median"  # deterministic median over base predictions, no LLM (see metaculus_bot.ablation.run_simple_agg)
 ARM_MEAN = "mean"  # deterministic mean over base predictions, no LLM (see metaculus_bot.ablation.run_simple_agg)
 
-# Not prod's opus-5.5: a gpt-5.5 primary 404ed on the operator's local donated key; see the module docstring.
-DEFAULT_STACKER_MODEL = "openrouter/anthropic/claude-opus-4.5"
-# Matches prod STACKER_FALLBACK_LLM (gpt-5.6-sol -> gpt-6-sol on 2026-09-22, then
-# gpt-6-sol -> gpt-6.1-sol on 2026-09-29); a different provider than the primary on purpose.
-DEFAULT_STACKER_FALLBACK_MODEL = "openrouter/openai/gpt-6.1-sol"
-DEFAULT_PARSER_MODEL = "openrouter/openai/gpt-oss-120b:free"
+# Free-tier benchmark stacker: keep the active model path generic and vendor-free.
+DEFAULT_STACKER_MODEL = "openrouter/free"
+DEFAULT_STACKER_FALLBACK_MODEL = "openrouter/free"
+DEFAULT_PARSER_MODEL = "openrouter/free"
 
-# The --lineup prod stacker, a plain GeneralLlm with no donated-key wrapper; its posture mirrors the prod forecasters.
-# opus-4.8 -> opus-5.5 on the 2026-09-22 migration.
-PROD_STACKER_MODEL = "openrouter/anthropic/claude-opus-5.5"
+# Reference stacker for benchmark comparisons, still free-tier only.
+PROD_STACKER_MODEL = "openrouter/free"
 # Medium effort, no sampling params: ``temperature=None`` stops litellm injecting one, top_p and max_tokens stay unset.
 _PROD_STACKER_KWARGS: dict[str, Any] = {
     "reasoning": {"effort": "medium"},
@@ -96,18 +83,9 @@ _PROD_STACKER_KWARGS: dict[str, Any] = {
     "allowed_tries": 1,
 }
 
-# Anthropic takes an explicit thinking budget (``reasoning.max_tokens``, as prod ``STACKER_LLM`` in ``llm_configs.py``).
-_OPUS_STACKER_KWARGS: dict[str, Any] = {
-    "reasoning": {"max_tokens": 32_000},
-    "temperature": None,
-    "max_tokens": 64_000,
-    "stream": False,
-    "timeout": 480,
-    "allowed_tries": 1,
-}
-# OpenAI takes ``reasoning.effort`` instead; sampling params follow the repo convention (temperature=None, no top_p).
-_OPENAI_STACKER_KWARGS: dict[str, Any] = {
-    "reasoning": {"effort": "high"},
+# Keep the active benchmark stacker generic and free-tier only.
+_FREE_STACKER_KWARGS: dict[str, Any] = {
+    "reasoning": {"effort": "medium"},
     "temperature": None,
     "max_tokens": 64_000,
     "stream": False,
@@ -117,26 +95,13 @@ _OPENAI_STACKER_KWARGS: dict[str, Any] = {
 
 
 def _build_default_stacker_llm() -> GeneralLlm:
-    """Primary ablation stacker (claude-opus-4.5 via donated-key wrapper).
-
-    Mirrors production STACKER_LLM. Anthropic models work cleanly on the
-    donated key. ``allowed_tries=1`` so we don't double-bill the donated key
-    on transient stalls — the wrapper's donated→paid handling is the safety
-    net.
-    """
-    return build_llm_with_openrouter_fallback(model=DEFAULT_STACKER_MODEL, **_OPUS_STACKER_KWARGS)
+    """Primary ablation stacker on the free-tier route."""
+    return build_llm_with_openrouter_fallback(model=DEFAULT_STACKER_MODEL, **_FREE_STACKER_KWARGS)
 
 
 def _build_default_fallback_stacker_llm() -> GeneralLlm:
-    """Fallback ablation stacker (gpt-6.1-sol).
-
-    Mirrors production STACKER_FALLBACK_LLM. Different provider on purpose —
-    if Anthropic is thrashing, retrying against Anthropic rarely recovers.
-    Goes through the donated-key wrapper too; if the donated key data-policy
-    blocks the OpenAI model (operator-specific), the wrapper's fallback to the
-    paid key catches it.
-    """
-    return build_llm_with_openrouter_fallback(model=DEFAULT_STACKER_FALLBACK_MODEL, **_OPENAI_STACKER_KWARGS)
+    """Fallback ablation stacker on the free-tier route."""
+    return build_llm_with_openrouter_fallback(model=DEFAULT_STACKER_FALLBACK_MODEL, **_FREE_STACKER_KWARGS)
 
 
 # Re-exports the flag helpers that moved to ``ablation.env`` (breaking a forecasters/run_stacker import cycle).
@@ -162,7 +127,7 @@ __all__ = [
 # Held at 2 whatever prod's MIN_FORECASTERS_TO_PUBLISH is (3 -> 2 on 2026-07-20): a stricter floor drops both arms.
 ABLATION_MIN_FORECASTERS = 2
 
-# 4 chars/token on the slot's smallest window (gpt-5.5, 128k) less 30k reasoning headroom; overruns 400 both stackers.
+# Free-tier stacker window guard remains conservative and provider-neutral.
 APPROX_STACKER_CHAR_LIMIT = 4 * (128_000 - 30_000)
 
 # Tells "not passed" from an explicit None: None means --no-stacker-fallback, which skips the fallback chain.
@@ -496,7 +461,7 @@ def _rationales_within_budget(
     """Tail-preserving per-rationale truncation when the assembled prompt is too big.
 
     Free-tier forecasters can emit 200k+ char rationales, and 4 of them stacked
-    together blow past Claude/GPT context windows. Returns ``base_texts`` unchanged
+    together exceed the protocol context window. Returns ``base_texts`` unchanged
     when the prompt already fits.
     """
     research_budget = len(research_blob) + len(aggregated_for_stacker or "")

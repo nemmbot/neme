@@ -567,11 +567,10 @@ review sets and the similarity screen behind the false-strip review:
 `scratch/next_season_bundle_2026-09/item4_attribution_check/VALIDATION.md`; the 87%
 receipt is `scratch/residual_2026-08-31/gemini_search_audit/cutB_pattern.md` §3.2.
 
-This provider uses the operator's personal `GOOGLE_API_KEY` (a paid-tier Google
-AI Studio key). There is no Metaculus-donated key on the google-genai side: the
-donated path only exists for OpenRouter-routed Gemini. If grounded search starts
-soft-failing across a run, check the AI Studio prepaid-credit balance first
-(exhaustion shows up as 429s, not surprise charges).
+This provider uses the operator's personal `GOOGLE_API_KEY` on a Google AI Studio
+project. There is no Metaculus-donated key on the google-genai side: the donated
+path only exists for OpenRouter-routed Gemini. If grounded search starts
+soft-failing across a run, check the AI Studio project status and balance first.
 
 ### Financial data: `FINANCIAL_DATA_ENABLED` (+ `FRED_API_KEY` for live FRED)
 

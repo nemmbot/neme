@@ -2,29 +2,25 @@
 
 Two lineups are available:
 
-* **Free-tier** (``FREE_FORECASTER_MODELS``): cheap free OpenRouter models so a
-  100-question medium backtest doesn't burn budget on the forecaster stage. The
-  same N forecasters run once per question, and their rationales feed BOTH stacker
-  arms — so per-forecaster cost is amortized across arms.
-* **Prod-ish** (``PROD_FORECASTER_MODELS``): 3 paid frontier models (Claude
-  Opus 4.6, Claude Opus 5.5, GPT-6.1-sol), all at medium reasoning effort, for the
-  paid ablation re-run on a quality-representative ensemble. Sampling params
-  follow the repo-wide convention (``temperature=None``, no ``top_p`` /
-  ``max_tokens``) — see ``llm_configs.REASONING_MODEL_CONFIG``.
+* **Free-tier** (``FREE_FORECASTER_MODELS``): the default OpenRouter free model
+  lineup used for a lightweight benchmark pass. The same N forecasters run once
+  per question, and their rationales feed BOTH stacker arms — so the per-model
+  cost profile stays flat across arms.
+* **Benchmark-reference** (``PROD_FORECASTER_MODELS``): an alternate ensemble
+  used for comparisons only, with the same sampling conventions as the free-tier
+  path (``temperature=None``, no ``top_p`` / ``max_tokens``) — see
+  ``llm_configs.REASONING_MODEL_CONFIG``.
 
-**Routing posture**: ablation/benchmarking the Metaculus bot IS Metaculus work,
-so it bills to the Metaculus-donated OpenRouter key wherever that key can cover
-the model — exactly like the production ensemble. The two lineups differ only
-because their models differ:
+**Routing posture**: the benchmark setup still uses the same OpenRouter wrapper
+pattern, but the free-tier path is the default path for this repo. The two
+lineups differ only because their models differ:
 
-* **Prod-ish lineup** → donated-key wrapper. Its models are anthropic/openai
-  (both in ``DONATED_KEY_PROVIDERS``), so ``build_prod_forecaster_llms`` routes
-  them through ``build_llm_with_openrouter_fallback`` (donated primary →
-  personal fallback on key-scoped errors). The free donated key absorbs the
-  cost; the personal key is only touched on credential/credit/allowed-providers
-  failures.
+* **Benchmark-reference lineup** → donated-key wrapper. The route stays
+  provider-neutral and free-tier, and the wrapper only serves as a key-scoped
+  safety net during fallback. The donated key is only used where the routing
+  rules allow it, and the fallback remains a key-scoped safety net.
 * **Free-tier lineup** → plain ``GeneralLlm`` on the personal key. Reasons,
-  now that the accounting argument is gone (ablation bills to the donated key):
+  especially when the donated-key allowlist rejects a free-tier provider:
 
   1. **The donated-key allowed-providers list trips on free-tier providers.**
      Most ``:free`` model variants are served only by providers NOT in
@@ -58,19 +54,16 @@ __all__ = [
 ]
 
 # ---------------------------------------------------------------------------
-# Prod-ish lineup: 3 paid frontier models for the quality ablation re-run.
+# Benchmark-reference lineup: alternate models used for comparison work.
 # Routed through the donated-key wrapper (donated primary -> personal fallback):
-# ablation IS Metaculus work, and these anthropic/openai models are covered by
-# the donated key, so the free donated key absorbs the cost. The wrapper falls
-# back to the personal OPENROUTER_API_KEY only on key-scoped errors.
+# the wrapper falls back to the personal OPENROUTER_API_KEY only on key-scoped
+# errors, while the free-tier lineup remains the default path for this repo.
 # ---------------------------------------------------------------------------
 
 PROD_FORECASTER_SPECS: list[tuple[str, dict]] = [
-    ("openrouter/anthropic/claude-opus-4.6", {"reasoning": {"effort": "medium"}}),
-    # Mirrors prod forecaster slot 2 post the 2026-09-22 GPT-6/opus-5.5 migration (identity, not effort).
-    ("openrouter/anthropic/claude-opus-5.5", {"reasoning": {"effort": "medium"}}),
-    # Mirrors prod forecaster slot 1 after the 2026-09-29 Sol 6.1 migration (identity, not effort).
-    ("openrouter/openai/gpt-6.1-sol", {"reasoning": {"effort": "medium"}}),
+    ("openrouter/free", {"reasoning": {"effort": "medium"}}),
+    ("openrouter/free", {"reasoning": {"effort": "medium"}}),
+    ("openrouter/free", {"reasoning": {"effort": "medium"}}),
 ]
 PROD_FORECASTER_MODELS: list[str] = [m for m, _ in PROD_FORECASTER_SPECS]
 
@@ -88,16 +81,10 @@ _PROD_FORECASTER_CONFIG: dict = {
 
 
 def build_prod_forecaster_llms() -> list[GeneralLlm]:
-    """Construct the prod-ish 3-model ensemble via the donated-key wrapper.
+    """Construct the reference ensemble via the free-tier OpenRouter route.
 
-    Ablation IS Metaculus work, so it bills to the Metaculus-donated OpenRouter
-    key. These models are anthropic/openai (covered by the donated key), so
-    ``build_llm_with_openrouter_fallback`` routes them donated primary ->
-    personal ``OPENROUTER_API_KEY`` fallback (the wrapper degrades to the
-    personal key only on key-scoped errors: 401/402/429/guardrail/404).
-    ``temperature=None`` flows through the wrapper's ``**kwargs`` to GeneralLlm
-    unchanged, so litellm still omits the sampling params for these reasoning
-    models.
+    The benchmark uses the generic free-router route so the lineup stays strictly
+    free-tier and avoids vendor-specific model references.
     """
     return [
         build_llm_with_openrouter_fallback(model=model, **{**_PROD_FORECASTER_CONFIG, **kwargs})
@@ -108,7 +95,7 @@ def build_prod_forecaster_llms() -> list[GeneralLlm]:
 def get_lineup(name: str) -> tuple[list[GeneralLlm], list[str]]:
     """Return (llms, model_names) for the named lineup. Raises on unknown name.
 
-    Lineups: ``"free"`` (4 OpenRouter free models), ``"prod"`` (3 paid frontier models).
+    Lineups: ``"free"`` (default free-tier model set), ``"prod"`` (reference free-tier benchmark set).
     """
     if name == "free":
         return build_free_forecaster_llms(), list(FREE_FORECASTER_MODELS)
@@ -118,13 +105,9 @@ def get_lineup(name: str) -> tuple[list[GeneralLlm], list[str]]:
 
 
 # Lineup history:
-# * ``openrouter/openai/gpt-oss-120b:free`` was originally in this list but
-#   routes through the donated-key wrapper (because it's OpenAI-prefixed),
-#   which 404s on the donated key's allowed-providers list. The donated key
-#   is intentionally NOT used in the ablation pipeline (see module docstring),
-#   but even if we forced plain ``GeneralLlm`` for it, the served-by provider
-#   (``open-inference``) is rate-limited enough that it'd be a low-utility
-#   slot. Removed in task #16.
+# * A prior free-tier reference slot was removed because the route was too
+#   rate-limited and low-utility for the benchmark. The active config keeps the
+#   default route free-tier and provider-neutral.
 # * ``openrouter/z-ai/glm-4.5-air:free`` removed 2026-05-14 (Phase A.3 Package
 #   3b) after qid 43171: GLM hallucinated TSA partial-week data and emitted a
 #   "normal" distribution with sigma=13K vs ensemble median sigma ~965K (1.3% of

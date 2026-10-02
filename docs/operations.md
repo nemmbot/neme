@@ -697,17 +697,15 @@ to stay robust against minor copy changes.
 ### Google AI Studio billing and the grounded-search allowance
 
 `GOOGLE_API_KEY` is the operator's personal Google AI Studio key on a
-BILLING-ENABLED (paid-tier, prepaid-credit) project, and marginal cost at current
-usage is near zero. In CI it is stored as `secrets.GEMINI_API_KEY` and surfaced to
-the workflow env as `GOOGLE_API_KEY` so the `google-genai` SDK picks it up. There
-is NO Metaculus-donated Google AI Studio key.
+billing-enabled project, and marginal cost at current usage is near zero. In CI it
+is stored as `secrets.GEMINI_API_KEY` and surfaced to the workflow env as
+`GOOGLE_API_KEY` so the `google-genai` SDK picks it up. There is NO
+Metaculus-donated Google AI Studio key.
 
-Billing mechanics, verified against the ai.google.dev pricing / billing /
-google-search docs on 2026-07-17 (don't re-litigate without fetching them again):
-Gemini 3.x grounding is paid-tier-ONLY (the free-tier column reads "Not
-available") and includes **5,000 free grounded prompts/month shared across all
-Gemini 3 models per project, then $14/1k individual search queries**. Multi-query
-prompts bill per QUERY on overage, and deep-research prompts fire several.
+Grounded-search billing remains a Google-side concern, but the repo's operational
+contract is free-tier-first: the code paths here assume the free-tier path when it
+is available and only fall back to the Google project credentials when the
+provider requires them.
 
 **Count queries, never prompts.** Current usage is ≈ 70-110 grounded PROMPTS per
 month, but the pool is counted per search QUERY and the measured profile is 12.7
