@@ -20,23 +20,23 @@ from metaculus_bot.research import providers as research_providers
                 "PERPLEXITY_API_KEY": "perplexity-key",
                 "OPENROUTER_API_KEY": "openrouter-key",
             },
-            "asknews",
-            "AskNews briefing",
-            "## News Articles (AskNews)",
+            "web_search",
+            "Web search research",
+            "## Web Research (Tavily, Exa, Firecrawl fallback)",
             id="asknews-before-others",
         ),
         pytest.param(
             {"EXA_API_KEY": "exa-key", "PERPLEXITY_API_KEY": "perplexity-key"},
-            "exa",
-            "Exa research",
-            "## Web Research (Exa)",
+            "web_search",
+            "Web search research",
+            "## Web Research (Tavily, Exa, Firecrawl fallback)",
             id="exa-before-perplexity",
         ),
         pytest.param(
             {"ASKNEWS_CLIENT_ID": "asknews-client", "EXA_API_KEY": "exa-key"},
-            "exa",
-            "Exa research",
-            "## Web Research (Exa)",
+            "web_search",
+            "Web search research",
+            "## Web Research (Tavily, Exa, Firecrawl fallback)",
             id="missing-asknews-secret-falls-through",
         ),
         pytest.param(
@@ -67,7 +67,10 @@ async def test_run_research_uses_real_provider_priority(
     for name in (
         "ASKNEWS_CLIENT_ID",
         "ASKNEWS_SECRET",
+        "TAVILY_API_KEY",
         "EXA_API_KEY",
+        "FIRECRAWL_API_KEY",
+        "NIMBLE_API_KEY",
         "PERPLEXITY_API_KEY",
         "OPENROUTER_API_KEY",
         "RESEARCH_PROVIDER",
@@ -116,12 +119,15 @@ async def test_run_research_uses_real_provider_priority(
     monkeypatch.setattr(forecaster._research, "_call_exa_smart_searcher", exa_call)
     monkeypatch.setattr(forecaster._research, "_call_perplexity_direct", direct_perplexity_call)
     monkeypatch.setattr(forecaster._research, "_call_perplexity_openrouter", openrouter_call)
+    web_search_call = AsyncMock(return_value=("tavily+exa", "Web search research"))
+    monkeypatch.setattr(research_providers, "search_web_fallback", web_search_call)
 
     research = await forecaster.run_research(question)
 
     selected_calls = {
         "asknews": asknews_call,
         "exa": exa_call,
+        "web_search": web_search_call,
         "perplexity": direct_perplexity_call,
         "openrouter": openrouter_call,
     }
@@ -130,7 +136,8 @@ async def test_run_research_uses_real_provider_priority(
         diagnostics = forecaster._research.pop_provider_diagnostics(question.id_of_question)
         assert "- none: empty | 0 chars |" in diagnostics
     else:
-        selected_calls[expected_provider].assert_awaited_once_with(question)
+        expected_call_args = (question.question_text,) if expected_provider == "web_search" else (question,)
+        selected_calls[expected_provider].assert_awaited_once_with(*expected_call_args)
         assert expected_text in research
         assert expected_header in research
 

@@ -196,16 +196,20 @@ members at the bottom of `ResearchOrchestrator` are the orchestrator-attribute s
 
 ## Primary provider: a priority ladder
 
-There is exactly one primary search provider, chosen by `choose_provider_with_name`
-(`research/providers.py`): Tavily (`TAVILY_API_KEY`) is primary and Nimbleway Search
-(`NIMBLE_API_KEY`) is tried if Tavily fails or returns no usable results. When only
-Nimbleway is configured, it serves directly. Production workflows set
-`RESEARCH_PROVIDER=tavily` and wire both API keys. Mantic is the exception: it sets
-`RESEARCH_PROVIDER=nimble`, preferring Nimbleway and falling back to Tavily. Search itself
-does not call an LLM; model-based analysis uses `OPENROUTER_FREE_MODEL`.
+The shared web-search provider, chosen by `choose_provider_with_name`
+(`research/providers.py`), runs Tavily (`TAVILY_API_KEY`) and Exa
+(`EXA_API_KEY`) in parallel as primary sources. Firecrawl (`FIRECRAWL_API_KEY`)
+is called only when neither primary returns usable results. Nimbleway remains
+available only through the explicit legacy `RESEARCH_PROVIDER=nimble` override.
+Production workflows set
+`RESEARCH_PROVIDER=tavily` and pass all three API keys. Search calls themselves do
+not call an LLM; model-based analysis continues to use the existing OpenRouter
+free-model router (`OPENROUTER_FREE_MODEL`).
 
-Legacy AskNews, Exa, and Perplexity adapters remain for old configurations but are
-not wired by production workflows.
+Google grounded search remains disabled in production workflows. The personal
+`GOOGLE_API_KEY` is wired only to last-resort `url_context` document reads: each
+reader path is bounded to two reads per question and runs only after ordinary
+fetching cannot retrieve the source.
 
 The Perplexity prompt interpolates `OUTSIDE_VENUE_MARKET_ODDS_POLICY` rather than restating the
 market-odds ask, because a second copy of it drifted once. This provider is the primary whenever
@@ -2056,7 +2060,8 @@ budget drops it: the fast path, or a research phase that ran out of budget):
    survivors at `GAP_FILL_MAX_GAPS`, all before any resolver call; the
    `GAP_FILL_V1_TRIAGE` marker records the counts. The rules, the decisions behind them
    and the receipts are in "v1 triage" below.
-3. Each survivor is resolved by a parallel Tavily search with Nimbleway fallback,
+3. Each survivor is resolved by parallel Tavily and Exa searches, with Firecrawl
+  fallback only when neither primary returns usable results,
   briefed with the gap and suggested query, the
    question title, and since 2026-09-09 the resolution criteria and fine print, so a
    "which figure resolves this" gap is answered against the criteria rather than the
@@ -2066,7 +2071,7 @@ budget drops it: the fast path, or a research phase that ran out of budget):
    is the index into the raw record's `gaps` and `results`; a dropped gap's analyzer
    position is in the record's `dropped` list.
 
-The analyzer runs through OpenRouter Free; search uses Tavily and falls back to Nimbleway.
+The analyzer runs through OpenRouter Free; search uses Tavily and Exa with Firecrawl fallback.
 The whole pass never raises
 (it returns `""` on any error) and appends its results under
 `## Targeted Gap-Fill (second pass)`.

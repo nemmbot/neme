@@ -28,6 +28,7 @@ from metaculus_bot.aggregation_strategies import (
 from metaculus_bot.close_margin import format_close_margin_marker
 from metaculus_bot.comment.formatting import (
     build_unified_explanation,
+    format_forecast_metadata_summary,
     format_forecaster_rationales_section,
     format_main_research_section,
     format_research_summary_with_models,
@@ -803,6 +804,13 @@ class TemplateForecaster(CompactLoggingForecastBot):
             else sum(len(collection.predictions) for collection in research_prediction_collections)
         )
         n_configured = len(self._forecaster_llms) or self.predictions_per_research_report
+        research_text = "\n\n".join(collection.research_report for collection in research_prediction_collections)
+        forecast_summary = format_forecast_metadata_summary(
+            question,
+            aggregated_prediction,
+            research_text,
+            n_used=n_used,
+        )
         return build_unified_explanation(
             base_text,
             question,
@@ -811,6 +819,7 @@ class TemplateForecaster(CompactLoggingForecastBot):
             skip_reason=stacker_skip_reason,
             n_used=n_used,
             n_configured=n_configured,
+            forecast_summary=forecast_summary,
         )
 
     async def _forecaster_with_soft_deadline(

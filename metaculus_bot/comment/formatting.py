@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
 
 from forecasting_tools import MetaculusQuestion, ReasonedPrediction
@@ -51,6 +52,47 @@ def format_research_summary_with_models(
 def format_main_research_section(base_text: str, report_number: int) -> str:
     """Trim the main research section to the configured section limit."""
     return trim_section(base_text, f"report_{report_number}_research")
+
+
+def format_forecast_metadata_summary(
+    question: MetaculusQuestion,
+    prediction: object,
+    research_text: str,
+    *,
+    n_used: int | None,
+) -> str:
+    """Render three compact comment points for the forecast, ensemble, and search provenance."""
+    question_text = " ".join(question.question_text.split())
+    if len(question_text) > 240:
+        question_text = f"{question_text[:237]}..."
+
+    if isinstance(prediction, (float, int)):
+        value_text = f"P(Yes)={float(prediction):.1%}"
+    else:
+        predicted_options = getattr(prediction, "predicted_options", None)
+        if isinstance(predicted_options, list) and predicted_options:
+            ranked = sorted(predicted_options, key=lambda option: float(option.probability), reverse=True)[:3]
+            value_text = ", ".join(f"{option.option_name}={option.probability:.1%}" for option in ranked)
+        else:
+            percentiles = getattr(prediction, "declared_percentiles", None)
+            median = percentiles.get(0.5) if isinstance(percentiles, dict) else None
+            value_text = f"median={median}" if median is not None else str(prediction)
+    if len(value_text) > 200:
+        value_text = f"{value_text[:197]}..."
+
+    search_sources = list(dict.fromkeys(re.findall(r"(?m)^Search source: ([^\r\n]+)", research_text)))
+    source_urls = set(re.findall(r"(?m)^URL: (https?://\S+)", research_text))
+    sources_text = ", ".join(search_sources) if search_sources else "no web search returned usable results"
+    search_line = f"{sources_text}; {len(source_urls)} cited URL(s) in Research."
+    ensemble_count = str(n_used) if n_used is not None else "the available"
+
+    return "\n".join(
+        (
+            f"- Forecast: {question_text} | {value_text}.",
+            f"- Basis: combined {ensemble_count} surviving model forecast(s); per-model estimates and rationales follow.",
+            f"- Search used: {search_line}",
+        )
+    )
 
 
 def format_forecaster_rationales_section(base_text: str, report_number: int) -> str:
@@ -105,6 +147,7 @@ def build_unified_explanation(
     skip_reason: str | None = None,
     n_used: int | None = None,
     n_configured: int | None = None,
+    forecast_summary: str | None = None,
 ) -> str:
     """Build the final Metaculus comment with stacker/tools/ensemble markers appended.
 
@@ -120,6 +163,8 @@ def build_unified_explanation(
     FORECASTERS_USED marker rides the comment tail; when omitted the comment is
     unchanged (back-compat with callers that don't track ensemble size).
     """
+    if forecast_summary:
+        base_text = base_text.replace("_Full research in the RESEARCH section below._", forecast_summary, 1)
     ensemble_suffix = _forecasters_used_suffix(n_used, n_configured)
     if aggregation_strategy not in (AggregationStrategy.STACKING, AggregationStrategy.CONDITIONAL_STACKING):
         return trim_comment(f"{base_text}{ensemble_suffix}")

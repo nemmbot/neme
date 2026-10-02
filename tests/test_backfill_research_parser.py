@@ -245,6 +245,12 @@ class TestProviderDetection:
         text = "## Web Research (Exa)\nExa content"
         assert "exa" in detect_providers(text)
 
+    def test_legacy_web_search_header_remains_decodable(self):
+        from scripts.backfill_research_from_logs import detect_providers
+
+        text = "## Web Research (Tavily/Nimbleway)\nHistorical search content"
+        assert detect_providers(text) == ["web_search"]
+
     def test_perplexity_header(self):
         from scripts.backfill_research_from_logs import detect_providers
 

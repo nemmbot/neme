@@ -95,7 +95,8 @@ jobs:
           PYTHONUNBUFFERED: '1'
           METACULUS_TOKEN: ${{ secrets.METACULUS_TOKEN }} # replace this with the name of the variable under which you stored your own Metaculus token
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-          NIMBLE_API_KEY: ${{ secrets.NIMBLE_API_KEY }}
+          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           RESEARCH_PROVIDER: 'tavily'
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           DONATED_OPENROUTER_KEY_ENABLED: 'false'
@@ -112,6 +113,8 @@ jobs:
           # client declines and the fetch ladder falls through to the ordinary page fetch.
           SEC_EDGAR_CONTACT_EMAIL: ${{ secrets.SEC_EDGAR_CONTACT_EMAIL }}
           GEMINI_SEARCH_ENABLED: 'false'
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          RESOLUTION_SOURCE_URL_CONTEXT_ENABLED: 'true'
           GEMINI_USE_DONATED_OPENROUTER_KEY: 'false'
           # Second-pass gap-fill: analyzer identifies gaps in first-pass research,
           # parallel grounded Gemini searches resolve each. Fails soft.
@@ -134,7 +137,6 @@ jobs:
           # Cited-source fetcher; long HTML uses the paid page-digest extractor.
           # Validated via live test_bot run 2026-07-10.
           RESOLUTION_SOURCE_ENABLED: 'true'
-          RESOLUTION_SOURCE_URL_CONTEXT_ENABLED: 'false'
           # Time-series anchor: deterministic empirical P10/P50/P90 band from a
           # question's own resolution series (FRED/yfinance). Text anchor ON since
           # 2026-07-17 (post smoke validation; see FUTURE.md "Time-series anchor").

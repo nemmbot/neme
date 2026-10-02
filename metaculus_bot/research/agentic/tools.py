@@ -36,6 +36,8 @@ from metaculus_bot.constants import (
     ASKNEWS_BACKOFF_SECS,  # noqa: F401  # re-export: tests read the AskNews retry ladder's constants off this module
     ASKNEWS_MAX_TRIES,  # noqa: F401  # re-export: see ASKNEWS_BACKOFF_SECS above
     DOCUMENT_DIGEST_TOP_K,
+    EXA_API_KEY_ENV,
+    FIRECRAWL_API_KEY_ENV,
     GOOGLE_API_KEY_ENV,
     NIMBLE_API_KEY_ENV,
     RESOLUTION_SOURCE_URL_CONTEXT_MAX_ATTEMPTS,
@@ -262,8 +264,11 @@ def _log_ladder_markers(result: FetchResult) -> None:
 
 
 async def search_news(query: str) -> ToolOutcome:
-    if not (os.getenv(TAVILY_API_KEY_ENV) or os.getenv(NIMBLE_API_KEY_ENV)):
-        return _format_fetch_error("TAVILY_API_KEY or NIMBLE_API_KEY is not configured.", method="news")
+    if not any(
+        os.getenv(env_name)
+        for env_name in (TAVILY_API_KEY_ENV, EXA_API_KEY_ENV, FIRECRAWL_API_KEY_ENV, NIMBLE_API_KEY_ENV)
+    ):
+        return _format_fetch_error("No web search API key is configured.", method="news")
     try:
         _, results = await search_web_fallback(query, topic="news")
     except Exception as exc:  # noqa: BLE001  # HARNESS-SCAN-EXEMPT-broad-except  # tool-handler soft-fail boundary: a dead provider becomes a tool result the driver can read, never a loop crash
@@ -272,8 +277,11 @@ async def search_news(query: str) -> ToolOutcome:
 
 
 async def search_web(query: str, end_published_date: str | None = None) -> ToolOutcome:
-    if not (os.getenv(TAVILY_API_KEY_ENV) or os.getenv(NIMBLE_API_KEY_ENV)):
-        return _format_fetch_error("TAVILY_API_KEY or NIMBLE_API_KEY is not configured.", method="search")
+    if not any(
+        os.getenv(env_name)
+        for env_name in (TAVILY_API_KEY_ENV, EXA_API_KEY_ENV, FIRECRAWL_API_KEY_ENV, NIMBLE_API_KEY_ENV)
+    ):
+        return _format_fetch_error("No web search API key is configured.", method="search")
     try:
         _, results = await search_web_fallback(query, end_date=end_published_date)
     except Exception as exc:  # noqa: BLE001  # HARNESS-SCAN-EXEMPT-broad-except  # tool-handler soft-fail boundary: a dead provider becomes a tool result the driver can read, never a loop crash

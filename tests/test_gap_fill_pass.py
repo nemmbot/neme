@@ -1019,7 +1019,7 @@ async def test_resolver_enforces_web_search_timeout(monkeypatch: pytest.MonkeyPa
     async def hang(_query: str, **_: Any) -> str:
         """Sleep well past the 0.05s wall-clock cap; the test passes only if wait_for cancels it first."""
         await asyncio.sleep(5)
-        return "tavily", "should never reach here"
+        return "should never reach here"
 
     with (
         patch("metaculus_bot.research.targeted._run_analyzer", AsyncMock(return_value=gaps)),
