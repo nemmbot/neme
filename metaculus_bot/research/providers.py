@@ -32,6 +32,7 @@ from metaculus_bot.constants import (
     ASKNEWS_SECRET_ENV,
     ASKNEWS_WALL_TIMEOUT,
     EXA_API_KEY_ENV,
+    FIRECRAWL_API_KEY_ENV,
     NATIVE_SEARCH_CONTEXT_SIZE,
     NATIVE_SEARCH_DEFAULT_MODEL,
     NATIVE_SEARCH_MAX_RESULTS,
@@ -560,6 +561,10 @@ native_search_provider = _native_search_provider
 # ---------------------------------------------------------------------------
 
 
+def _web_search_credentials_present() -> bool:
+    return any(os.getenv(env_name) for env_name in (TAVILY_API_KEY_ENV, EXA_API_KEY_ENV, FIRECRAWL_API_KEY_ENV))
+
+
 def _forced_provider_choice(
     forced_lc: str,
     *,
@@ -571,13 +576,34 @@ def _forced_provider_choice(
 ) -> tuple[ResearchCallable, str] | None:
     """Resolve an explicit ``RESEARCH_PROVIDER`` override, or None to fall through to auto."""
     if forced_lc in {"tavily", "web_search"}:
-        if not (os.getenv(TAVILY_API_KEY_ENV) or os.getenv(NIMBLE_API_KEY_ENV)):
-            raise ValueError(f"RESEARCH_PROVIDER={forced_lc} requires TAVILY_API_KEY or NIMBLE_API_KEY")
+        if not _web_search_credentials_present():
+            raise ValueError(
+                f"RESEARCH_PROVIDER={forced_lc} requires TAVILY_API_KEY, EXA_API_KEY, or FIRECRAWL_API_KEY"
+            )
         return _web_search_provider(), "web_search"
     if forced_lc == "nimble":
         if not os.getenv(NIMBLE_API_KEY_ENV):
             raise ValueError("RESEARCH_PROVIDER=nimble requires NIMBLE_API_KEY")
         return _web_search_provider(preferred="nimble"), "web_search"
+    return _legacy_forced_provider_choice(
+        forced_lc,
+        default_llm=default_llm,
+        exa_callback=exa_callback,
+        perplexity_callback=perplexity_callback,
+        openrouter_callback=openrouter_callback,
+        is_benchmarking=is_benchmarking,
+    )
+
+
+def _legacy_forced_provider_choice(
+    forced_lc: str,
+    *,
+    default_llm: GeneralLlm | None,
+    exa_callback: ResearchCallable | None,
+    perplexity_callback: ResearchCallable | None,
+    openrouter_callback: ResearchCallable | None,
+    is_benchmarking: bool,
+) -> tuple[ResearchCallable, str] | None:
     if forced_lc == "asknews":
         # Fail fast if creds missing to make misconfig obvious
         if not (os.getenv(ASKNEWS_CLIENT_ID_ENV) and os.getenv(ASKNEWS_SECRET_ENV)):
@@ -589,6 +615,21 @@ def _forced_provider_choice(
         if default_llm is None:
             raise ValueError("RESEARCH_PROVIDER=exa requires default_llm or exa_callback to be provided")
         return _exa_provider(default_llm), "exa"
+    return _forced_llm_provider_choice(
+        forced_lc,
+        perplexity_callback=perplexity_callback,
+        openrouter_callback=openrouter_callback,
+        is_benchmarking=is_benchmarking,
+    )
+
+
+def _forced_llm_provider_choice(
+    forced_lc: str,
+    *,
+    perplexity_callback: ResearchCallable | None,
+    openrouter_callback: ResearchCallable | None,
+    is_benchmarking: bool,
+) -> tuple[ResearchCallable, str] | None:
     if forced_lc == "perplexity":
         if perplexity_callback is not None:
             return perplexity_callback, "perplexity"
@@ -610,18 +651,14 @@ def _auto_provider_choice(
     is_benchmarking: bool,
 ) -> tuple[ResearchCallable, str]:
     """First provider whose credentials are present, in the documented priority order."""
-    if os.getenv(TAVILY_API_KEY_ENV) or os.getenv(NIMBLE_API_KEY_ENV):
+    if _web_search_credentials_present():
         return _web_search_provider(), "web_search"
+
+    if os.getenv(NIMBLE_API_KEY_ENV):
+        return _web_search_provider(preferred="nimble"), "web_search"
 
     if os.getenv(ASKNEWS_CLIENT_ID_ENV) and os.getenv(ASKNEWS_SECRET_ENV):
         return _asknews_provider(), "asknews"
-
-    if os.getenv(EXA_API_KEY_ENV):
-        if exa_callback is not None:
-            return exa_callback, "exa"
-        if default_llm is None:
-            raise ValueError("default_llm must be provided for Exa research provider")
-        return _exa_provider(default_llm), "exa"
 
     if os.getenv(PERPLEXITY_API_KEY_ENV):
         if perplexity_callback is not None:
@@ -649,11 +686,10 @@ def choose_provider_with_name(
 ) -> tuple[ResearchCallable, str]:
     """Return a research coroutine and its provider name.
 
-    Priority order replicates pre-refactor behaviour:
-     1. Configured web-search preference (Tavily by default, Nimbleway when requested),
-         falling back to the other configured provider
-     2. Legacy providers retained for explicit backwards-compatible overrides
-     3. Fallback stub that returns an empty string.
+    Priority order:
+     1. Tavily and Exa as parallel web-search primaries, with Firecrawl fallback
+     2. Explicit Nimbleway compatibility route, then other legacy overrides
+     3. Empty provider when no supported credentials are configured.
 
     ``RESEARCH_PROVIDER`` forces a specific provider; an unrecognized value falls
     through to the priority order above.

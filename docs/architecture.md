@@ -149,7 +149,9 @@ forecaster fan-out, aggregation, and publish all draw from that one budget.
         ┌────────────────────────────────────────────────┐
         │  1. RESEARCH  (ResearchOrchestrator.run_research)│
         │  Providers fan out in parallel:                  │
-        │    - AskNews (primary, summarized to a briefing) │
+        │    - Tavily + Exa (primary web search)            │
+        │      Firecrawl (fallback only)                    │
+        │    - AskNews (optional, summarized briefing)      │
         │    - OpenAI native search                        │
         │    - Gemini grounded search                      │
         │    - financial data (yfinance / FRED)            │
@@ -195,7 +197,8 @@ forecaster fan-out, aggregation, and publish all draw from that one budget.
                                  ▼
         ┌────────────────────────────────────────────────┐
         │  6. PUBLISHED COMMENT                            │
-        │  Per-model bullets + full research + diagnostics.│
+        │  Three-point forecast/search summary, model     │
+        │  forecasts, full research, and diagnostics.     │
         └────────────────────────────────────────────────┘
 ```
 

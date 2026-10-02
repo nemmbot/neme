@@ -33,8 +33,11 @@ PROVIDER_SECTION_HEADERS: dict[str, str] = {
     "exa": "## Web Research (Exa)",
     "perplexity": "## Web Research (Perplexity)",
     "openrouter": "## Web Research (OpenRouter)",
-    "web_search": "## Web Research (Tavily/Nimbleway)",
+    "web_search": "## Web Research (Tavily, Exa, Firecrawl fallback)",
     "custom": "## Research (Custom)",
+}
+LEGACY_PROVIDER_SECTION_HEADERS: dict[str, tuple[str, ...]] = {
+    "web_search": ("## Web Research (Tavily/Nimbleway)",),
 }
 
 
@@ -47,7 +50,8 @@ def detect_providers(research_text: str) -> list[str]:
     """
     providers = []
     for provider_name, header in PROVIDER_SECTION_HEADERS.items():
-        if header in research_text:
+        headers = (header, *LEGACY_PROVIDER_SECTION_HEADERS.get(provider_name, ()))
+        if any(candidate in research_text for candidate in headers):
             providers.append(provider_name)
     return providers
 

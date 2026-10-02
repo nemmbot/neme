@@ -479,10 +479,11 @@ class TestManticWorkflowSpendsOnlyPersonalKeys:
             "client cannot authenticate and every publish would 401"
         )
 
-    def test_search_prefers_nimble_with_tavily_fallback_configured(self) -> None:
-        assert "RESEARCH_PROVIDER: 'nimble'" in self.mantic_raw
+    def test_search_uses_tavily_and_exa_with_firecrawl_fallback(self) -> None:
+        assert "RESEARCH_PROVIDER: 'tavily'" in self.mantic_raw
         assert "TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}" in self.mantic_raw
-        assert "NIMBLE_API_KEY: ${{ secrets.NIMBLE_API_KEY }}" in self.mantic_raw
+        assert "EXA_API_KEY: ${{ secrets.EXA_API_KEY }}" in self.mantic_raw
+        assert "FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}" in self.mantic_raw
 
     def test_both_donated_routing_flags_are_forced_off(self) -> None:
         for flag in ("DONATED_OPENROUTER_KEY_ENABLED", "GEMINI_USE_DONATED_OPENROUTER_KEY"):

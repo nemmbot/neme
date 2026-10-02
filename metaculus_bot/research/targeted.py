@@ -116,8 +116,8 @@ async def extract_disagreement_crux(
 async def run_targeted_search(crux: str, question_text: str, *, is_benchmarking: bool = False) -> str:
     """Run a targeted web search to resolve a specific factual disagreement.
 
-    Uses Tavily, with Nimbleway as fallback, to find current information about
-    the identified crux.
+    Uses Tavily and Exa, with Firecrawl as fallback, to find current information
+    about the identified crux.
 
     Args:
         crux: The factual question(s) driving forecaster disagreement.
@@ -129,7 +129,7 @@ async def run_targeted_search(crux: str, question_text: str, *, is_benchmarking:
     """
     _ = is_benchmarking  # Retained in the call contract; API search returns sources, not market-odds analysis.
     query = f"{crux}\n\nForecast question: {question_text}"
-    logger.info("Running targeted search via Tavily/Nimbleway")
+    logger.info("Running targeted search via Tavily and Exa, with Firecrawl fallback")
     _, result = await search_web_fallback(query)
     logger.info(f"Targeted search complete: {len(result)} chars")
     return result
@@ -354,8 +354,8 @@ async def run_gap_fill_pass(
 ) -> str:
     """Identify, triage and resolve factual gaps in first-pass research.
 
-    An analyzer call for the graded gap list, then ``triage_gaps``, then one parallel Tavily/Nimbleway
-    search per survivor. The models, the stage detail and the triage rules are in docs/research.md
+    An analyzer call for the graded gap list, then ``triage_gaps``, then parallel Tavily and Exa
+    searches per survivor with Firecrawl fallback. The models, the stage detail and the triage rules are in docs/research.md
     "v1: targeted gap-fill".
 
     Keeps successful research on upstream failure and reports one error per pass through

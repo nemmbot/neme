@@ -1644,15 +1644,19 @@ class TestResearchNotDuplicatedInComment:
         )
         research_sentinel = "UNIQUE_RESEARCH_SENTINEL_42"
         collection = ResearchWithPredictions(
-            research_report=f"## Web Research\n{research_sentinel} body text",
+            research_report=f"## Web Research\nSearch source: Tavily\nURL: https://source.test\n{research_sentinel} body text",
             summary_report="_Full research in the RESEARCH section below._",
             errors=[],
             predictions=[ReasonedPrediction(prediction_value=0.6, reasoning="Model: x\nreasoning")],
         )
         explanation = bot._create_unified_explanation(q, [collection], 0.6, 0.01, 1.0)
         assert explanation.count(research_sentinel) == 1, "research must not be duplicated into the summary section"
-        # The stub pointer rides in the summary section; research lives under # RESEARCH.
-        assert "_Full research in the RESEARCH section below._" in explanation
+        assert "- Forecast: Will it happen? | P(Yes)=60.0%." in explanation
+        assert "- Basis: combined 1 surviving model forecast(s)" in explanation
+        assert "- Search used: Tavily; 1 cited URL(s) in Research." in explanation
+        assert explanation.count("- Forecast:") == 1
+        assert explanation.count("- Basis:") == 1
+        assert explanation.count("- Search used:") == 1
         assert "### Research Summary" in explanation
 
 
